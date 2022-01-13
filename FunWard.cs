@@ -35,8 +35,8 @@ namespace FunWard
             BuildPiece buildPiece = new("funward", "funward");
             buildPiece.Name.English("Fun Ward");
             buildPiece.Description.English("Ward For testing the Piece Manager");
-            buildPiece.RequiredItems.Add("Iron", 20, 2, false);
-            buildPiece.RequiredItems.Add("SwordIronFire", 20, 2, false); // currently can't accept more than one config option. Not binding things correctly. Fix later TODO
+            buildPiece.RequiredItems.Add("Iron", 20, false);
+            buildPiece.RequiredItems.Add("SwordIronFire", 20, false); // currently can't accept more than one config option. Not binding things correctly. Fix later TODO
 
             harmony = new Harmony(HarmonyGUID);
 
