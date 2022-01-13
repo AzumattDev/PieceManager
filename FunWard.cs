@@ -11,10 +11,10 @@ using PieceManager;
 //using ServerSync;
 using UnityEngine;
 
-namespace WardIsLove
+namespace FunWard
 {
     [BepInPlugin(HGUIDLower, ModName, version)]
-    public partial class WardIsLovePlugin : BaseUnityPlugin
+    public partial class MOCKPMPlugin : BaseUnityPlugin
     {
         public const string version = "1.0.0";
         public const string ModName = "TESTMOD";
@@ -25,14 +25,6 @@ namespace WardIsLove
         private static string ConfigFileName = HGUIDLower + ".cfg";
         private static string ConfigFileFullPath = Paths.ConfigPath + Path.DirectorySeparatorChar + ConfigFileName;
         public static string ConnectionError = "";
-        public static bool IsUpToDate;
-        public static bool ValidServer = false;
-        public static bool Admin = false;
-        public static bool Raidable = false;
-        public static bool fInit = false;
-        public static int EffectTick = 0;
-        public static GameObject Thorward;
-        public static GameObject LightningVFX;
 
 
         //harmony
