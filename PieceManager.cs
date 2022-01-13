@@ -99,7 +99,7 @@ namespace PieceManager
                 }
                 else
                 {
-                    string key = "$piece_" + Prefab.name.Replace(" ", "_") + "description";
+                    string key = "$piece_" + Prefab.name.Replace(" ", "_") + "_description";
                     _description = new LocalizeKey(key).English(data.m_description);
                     data.m_description = key;
                 }
@@ -214,9 +214,9 @@ namespace PieceManager
         }
 
         [HarmonyPriority(Priority.VeryHigh)]
-        internal static void Patch_PieceGETPIECE(ref Piece __instance)
+        internal static void Patch_PieceGETPIECE(Player __instance, ref Piece __result)
         {
-            if (__instance == null)
+            if (__result == null)
             {
                 return;
             }
@@ -228,9 +228,9 @@ namespace PieceManager
                 pieceConfigs.TryGetValue(piece, out PieceConfig? cfg);
 
                 Piece.Requirement? recipe = new();
-                if (__instance.m_name == piece.Prefab.GetComponent<Piece>().m_name)
+                if (__result.m_name == piece.Prefab.GetComponent<Piece>().m_name)
                 {
-                    __instance.m_resources = SerializedRequirements.toPieceReqs(cfg == null
+                    __result.m_resources = SerializedRequirements.toPieceReqs(cfg == null
                         ? new SerializedRequirements(piece.RequiredItems.Requirements)
                         : new SerializedRequirements(cfg.craft.Value));
                 }
@@ -454,7 +454,7 @@ namespace PieceManager
             harmony.Patch(AccessTools.DeclaredMethod(typeof(Piece), nameof(Piece.Awake)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(BuildPiece),
                     nameof(BuildPiece.Patch_PieceAwake))));
-            harmony.Patch(AccessTools.DeclaredMethod(typeof(Piece), nameof(Piece.Awake)),
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(Player), nameof(Player.GetPiece)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(BuildPiece),
                     nameof(BuildPiece.Patch_PieceGETPIECE))));
         }
