@@ -87,12 +87,12 @@
         </Reference>
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="FunWard.cs" />
         <Compile Include="PieceManager.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
-        <Compile Include="FunWard.cs" />
     </ItemGroup>
     <ItemGroup>
-        <EmbeddedResource Include="assets\funward" />
+      <EmbeddedResource Include="assets\funward" />
     </ItemGroup>
     <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
     <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

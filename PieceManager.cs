@@ -339,7 +339,7 @@ namespace PieceManager
                 if (_configSync != null || !hasConfigSync) return _configSync;
                 if (Assembly.GetExecutingAssembly().GetType("ServerSync.ConfigSync") is { } configSyncType)
                 {
-                    _configSync = Activator.CreateInstance(configSyncType, plugin.Info.Metadata.GUID + " ItemManager");
+                    _configSync = Activator.CreateInstance(configSyncType, plugin.Info.Metadata.GUID + " PieceManager");
                     configSyncType.GetField("CurrentVersion")
                         .SetValue(_configSync, plugin.Info.Metadata.Version.ToString());
                     configSyncType.GetProperty("IsLocked")!.SetValue(_configSync, true);
