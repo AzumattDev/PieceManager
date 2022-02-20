@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
 
@@ -10,8 +11,24 @@ namespace PieceManager
         static MaterialReplacer()
         {
             originalMaterials = new Dictionary<string, Material>();
+            Harmony harmony = new("org.bepinex.helpers.PieceManager");
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ObjectDB), nameof(ObjectDB.Awake)),
+                postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
+                    nameof(GetAllMaterials))));
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ObjectDB), nameof(ObjectDB.CopyOtherDB)),
+                postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
+                    nameof(ReplaceAllMaterialsWithOriginal))));
         }
-        static Dictionary<string, Material> originalMaterials;
+
+        public static GameObject ObjectToSwap;
+        internal static Dictionary<string, Material> originalMaterials;
+
+        public static void RegisterGameObjectForMatSwap(GameObject go)
+        {
+            ObjectToSwap = go;
+        }
+        
+        [HarmonyPriority(Priority.VeryHigh)]
         public static void GetAllMaterials()
         {
             var allmats = Resources.FindObjectsOfTypeAll<Material>();
@@ -20,12 +37,13 @@ namespace PieceManager
                 originalMaterials[item.name] = item;
             }
         }
-
-        public static void ReplaceAllMaterialsWithOriginal(GameObject go)
+        
+        [HarmonyPriority(Priority.VeryHigh)]
+        public static void ReplaceAllMaterialsWithOriginal()
         {
             if (originalMaterials == null) GetAllMaterials();
 
-            foreach (Renderer renderer in go.GetComponentsInChildren<Renderer>(true))
+            foreach (Renderer renderer in ObjectToSwap.GetComponentsInChildren<Renderer>(true))
             {
                 for (int i = 0; i < renderer.materials.Length; i++)
                 {
