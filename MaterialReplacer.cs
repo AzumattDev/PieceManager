@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
@@ -11,21 +12,22 @@ namespace PieceManager
         static MaterialReplacer()
         {
             originalMaterials = new Dictionary<string, Material>();
+            ObjectToSwap = new List<GameObject>();
             Harmony harmony = new("org.bepinex.helpers.PieceManager");
-            harmony.Patch(AccessTools.DeclaredMethod(typeof(ObjectDB), nameof(ObjectDB.Awake)),
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
                     nameof(GetAllMaterials))));
-            harmony.Patch(AccessTools.DeclaredMethod(typeof(ObjectDB), nameof(ObjectDB.CopyOtherDB)),
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
                     nameof(ReplaceAllMaterialsWithOriginal))));
         }
 
-        public static GameObject ObjectToSwap;
+        private static List<GameObject> ObjectToSwap;
         internal static Dictionary<string, Material> originalMaterials;
 
         public static void RegisterGameObjectForMatSwap(GameObject go)
         {
-            ObjectToSwap = go;
+            ObjectToSwap.Add(go);
         }
         
         [HarmonyPriority(Priority.VeryHigh)]
@@ -43,24 +45,22 @@ namespace PieceManager
         {
             if (originalMaterials == null) GetAllMaterials();
 
-            foreach (Renderer renderer in ObjectToSwap.GetComponentsInChildren<Renderer>(true))
+            foreach (var renderer in ObjectToSwap.SelectMany(gameObject => gameObject.GetComponentsInChildren<Renderer>(true)))
             {
-                for (int i = 0; i < renderer.materials.Length; i++)
+                foreach (var t in renderer.materials)
                 {
-                    if (renderer.materials[i].name.StartsWith("_REPLACE_"))
-                    {
-                        var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
+                    if (!t.name.StartsWith("_REPLACE_")) continue;
+                    var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
 
-                        if (originalMaterials.ContainsKey(matName))
-                        {
-                            renderer.material = originalMaterials[matName];
-                        }
-                        else
-                        {
-                            Debug.LogWarning("No suitable material found to replace: " + matName);
-                            // Skip over this material in future
-                            originalMaterials[matName] = renderer.material;
-                        }
+                    if (originalMaterials.ContainsKey(matName))
+                    {
+                        renderer.material = originalMaterials[matName];
+                    }
+                    else
+                    {
+                        Debug.LogWarning("No suitable material found to replace: " + matName);
+                        // Skip over this material in future
+                        originalMaterials[matName] = renderer.material;
                     }
                 }
             }
