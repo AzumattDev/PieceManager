@@ -14,10 +14,10 @@ namespace PieceManager
             originalMaterials = new Dictionary<string, Material>();
             ObjectToSwap = new List<GameObject>();
             Harmony harmony = new("org.bepinex.helpers.PieceManager");
-            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)),
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZoneSystem), nameof(ZoneSystem.Start)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
                     nameof(GetAllMaterials))));
-            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)),
+            harmony.Patch(AccessTools.DeclaredMethod(typeof(ZoneSystem), nameof(ZoneSystem.Start)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
                     nameof(ReplaceAllMaterialsWithOriginal))));
         }
@@ -43,8 +43,7 @@ namespace PieceManager
         [HarmonyPriority(Priority.VeryHigh)]
         private static void ReplaceAllMaterialsWithOriginal()
         {
-            if (originalMaterials == null) GetAllMaterials();
-
+            if(originalMaterials.Count <= 0) GetAllMaterials();
             foreach (var renderer in ObjectToSwap.SelectMany(gameObject => gameObject.GetComponentsInChildren<Renderer>(true)))
             {
                 foreach (var t in renderer.materials)
@@ -52,7 +51,7 @@ namespace PieceManager
                     if (!t.name.StartsWith("_REPLACE_")) continue;
                     var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
 
-                    if (originalMaterials.ContainsKey(matName))
+                    if (originalMaterials!.ContainsKey(matName))
                     {
                         renderer.material = originalMaterials[matName];
                     }
