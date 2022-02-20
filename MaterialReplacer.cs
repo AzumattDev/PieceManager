@@ -29,7 +29,7 @@ namespace PieceManager
         }
         
         [HarmonyPriority(Priority.VeryHigh)]
-        public static void GetAllMaterials()
+        private static void GetAllMaterials()
         {
             var allmats = Resources.FindObjectsOfTypeAll<Material>();
             foreach (var item in allmats)
@@ -39,7 +39,7 @@ namespace PieceManager
         }
         
         [HarmonyPriority(Priority.VeryHigh)]
-        public static void ReplaceAllMaterialsWithOriginal()
+        private static void ReplaceAllMaterialsWithOriginal()
         {
             if (originalMaterials == null) GetAllMaterials();
 
