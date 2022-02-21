@@ -12,7 +12,7 @@ namespace PieceManager
         static MaterialReplacer()
         {
             originalMaterials = new Dictionary<string, Material>();
-            ObjectToSwap = new List<GameObject>();
+            ObjectToSwap = new Dictionary<GameObject, bool>();
             Harmony harmony = new("org.bepinex.helpers.PieceManager");
             harmony.Patch(AccessTools.DeclaredMethod(typeof(ZoneSystem), nameof(ZoneSystem.Start)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
@@ -22,12 +22,12 @@ namespace PieceManager
                     nameof(ReplaceAllMaterialsWithOriginal))));
         }
 
-        private static List<GameObject> ObjectToSwap;
+        private static Dictionary<GameObject, bool> ObjectToSwap;
         internal static Dictionary<string, Material> originalMaterials;
 
-        public static void RegisterGameObjectForMatSwap(GameObject go)
+        public static void RegisterGameObjectForMatSwap(GameObject go, bool isJotunnMock = false)
         {
-            ObjectToSwap.Add(go);
+            ObjectToSwap.Add(go, isJotunnMock);
         }
         
         [HarmonyPriority(Priority.VeryHigh)]
@@ -44,23 +44,44 @@ namespace PieceManager
         private static void ReplaceAllMaterialsWithOriginal()
         {
             if(originalMaterials.Count <= 0) GetAllMaterials();
-            foreach (var renderer in ObjectToSwap.SelectMany(gameObject => gameObject.GetComponentsInChildren<Renderer>(true)))
+            foreach (var renderer in ObjectToSwap.SelectMany(gameObject => gameObject.Key.GetComponentsInChildren<Renderer>(true)))
             {
+                ObjectToSwap.TryGetValue(renderer.gameObject, out bool jotunnPrefabFlag);
                 foreach (var t in renderer.materials)
                 {
-                    if (!t.name.StartsWith("_REPLACE_")) continue;
-                    var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
-
-                    if (originalMaterials!.ContainsKey(matName))
+                    if (jotunnPrefabFlag)
                     {
-                        renderer.material = originalMaterials[matName];
+                        if (!t.name.StartsWith("JVLmock_")) continue;
+                        var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
+
+                        if (originalMaterials!.ContainsKey(matName))
+                        {
+                            renderer.material = originalMaterials[matName];
+                        }
+                        else
+                        {
+                            Debug.LogWarning("No suitable material found to replace: " + matName);
+                            // Skip over this material in future
+                            originalMaterials[matName] = renderer.material;
+                        }
                     }
                     else
                     {
-                        Debug.LogWarning("No suitable material found to replace: " + matName);
-                        // Skip over this material in future
-                        originalMaterials[matName] = renderer.material;
+                        if (!t.name.StartsWith("_REPLACE_")) continue;
+                        var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
+
+                        if (originalMaterials!.ContainsKey(matName))
+                        {
+                            renderer.material = originalMaterials[matName];
+                        }
+                        else
+                        {
+                            Debug.LogWarning("No suitable material found to replace: " + matName);
+                            // Skip over this material in future
+                            originalMaterials[matName] = renderer.material;
+                        }   
                     }
+                    
                 }
             }
         }
