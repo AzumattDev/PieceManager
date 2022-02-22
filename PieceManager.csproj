@@ -88,6 +88,7 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="FunWard.cs" />
+        <Compile Include="MaterialReplacer.cs" />
         <Compile Include="PieceManager.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
     </ItemGroup>
