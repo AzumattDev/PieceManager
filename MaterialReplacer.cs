@@ -52,7 +52,7 @@ namespace PieceManager
                     if (jotunnPrefabFlag)
                     {
                         if (!t.name.StartsWith("JVLmock_")) continue;
-                        var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("_REPLACE_", "");
+                        var matName = renderer.material.name.Replace(" (Instance)", string.Empty).Replace("JVLmock_", "");
 
                         if (originalMaterials!.ContainsKey(matName))
                         {
