@@ -12,6 +12,19 @@ using UnityEngine;
 namespace PieceManager
 {
     [PublicAPI]
+    public enum BuildPieceCategory
+    {
+        None,
+        Misc = 0,
+        Crafting = 1,
+        Building = 2,
+        Furniture = 3,
+        Max = 4,
+        All = 100,
+        Custom
+    }
+
+    [PublicAPI]
     public class RequiredResourcesList
     {
         public readonly List<Requirement> Requirements = new();
@@ -28,11 +41,33 @@ namespace PieceManager
     }
 
     [PublicAPI]
+    public class BuildingPieceCategoryList
+    {
+        public readonly List<BuildPieceTableConfig> BuildPieceCategories = new();
+
+        public void Add(BuildPieceCategory category, bool useCategories) => BuildPieceCategories.Add(new BuildPieceTableConfig
+            { Category = category, UseCategories = useCategories });
+
+        public void Add(string customCategory, bool useCategories) => BuildPieceCategories.Add(new BuildPieceTableConfig
+            { Category = BuildPieceCategory.Custom, UseCategories = useCategories, custom = customCategory });
+    }
+
+    public struct BuildPieceTableConfig
+    {
+        public BuildPieceCategory Category;
+        public bool UseCategories;
+        public string? custom;
+    }
+
+
+    [PublicAPI]
     public class BuildPiece
     {
         private class PieceConfig
         {
             public ConfigEntry<string> craft = null!;
+            public ConfigEntry<BuildPieceCategory> category = null!;
+            public ConfigEntry<string> customCategory = null!;
         }
 
         private static readonly List<BuildPiece> registeredPieces = new();
@@ -48,6 +83,8 @@ namespace PieceManager
         /// <para>Use one .Add for each resource type the item should need.</para>
         /// </summary>
         public readonly RequiredResourcesList RequiredItems = new();
+        
+        public readonly BuildingPieceCategoryList Category = new();
 
         private LocalizeKey? _name;
 
@@ -486,6 +523,17 @@ namespace PieceManager
                 ZnetOnlyPrefabs.Add(prefab);
             }
 
+            return prefab;
+        }
+        
+        /* Sprites Only! */
+        public static Sprite RegisterSprite(string assetBundleFileName, string prefabName,
+            string folderName = "assets") =>
+            RegisterSprite(RegisterAssetBundle(assetBundleFileName, folderName), prefabName);
+
+        public static Sprite RegisterSprite(AssetBundle assets, string prefabName)
+        {
+            Sprite prefab = assets.LoadAsset<Sprite>(prefabName);
             return prefab;
         }
 
