@@ -11,7 +11,7 @@
         <AssemblyName>PieceManager</AssemblyName>
         <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
         <FileAlignment>512</FileAlignment>
-        <LangVersion>9</LangVersion>
+        <LangVersion>10</LangVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -84,18 +84,20 @@
         <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
           <HintPath>$(GamePath)\unstripped_corlib\UnityEngine.IMGUIModule.dll</HintPath>
         </Reference>
+        <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+          <HintPath>$(GamePath)\unstripped_corlib\UnityEngine.PhysicsModule.dll</HintPath>
+        </Reference>
     </ItemGroup>
     <ItemGroup>
-        <Compile Include="FunWard.cs" />
         <Compile Include="MaterialReplacer.cs" />
         <Compile Include="PieceManager.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
+        <Compile Include="SnapPointMaker.cs" />
     </ItemGroup>
     <ItemGroup>
-      <EmbeddedResource Include="assets\funward" />
-    </ItemGroup>
-    <ItemGroup>
+      <Content Include=".gitignore" />
       <Content Include="LICENSE.txt" />
+      <Content Include="README.md" />
     </ItemGroup>
     <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
     <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
