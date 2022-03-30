@@ -512,7 +512,7 @@ public static class PiecePrefabManager
     }
 
     private static readonly List<GameObject> piecePrefabs = new();
-    private static readonly Dictionary<string, GameObject> customPiecePrefabs = new();
+    private static readonly Dictionary<GameObject, string> customPiecePrefabs = new();
     private static readonly List<GameObject> ZnetOnlyPrefabs = new();
 
     public static GameObject RegisterPrefab(string assetBundleFileName, string prefabName,
@@ -530,7 +530,7 @@ public static class PiecePrefabManager
         }
         else if (addToCustomPieceTable)
         {
-            customPiecePrefabs.Add(customPieceTable, prefab);
+            customPiecePrefabs.Add(prefab,customPieceTable);
         }
         else
         {
@@ -554,7 +554,7 @@ public static class PiecePrefabManager
     [HarmonyPriority(Priority.VeryHigh)]
     private static void Patch_ZNetSceneAwake(ZNetScene __instance)
     {
-        foreach (GameObject prefab in piecePrefabs.Concat(ZnetOnlyPrefabs).Concat(customPiecePrefabs.Values))
+        foreach (GameObject prefab in piecePrefabs.Concat(ZnetOnlyPrefabs).Concat(customPiecePrefabs.Keys))
         {
             __instance.m_prefabs.Add(prefab);
         }
@@ -569,21 +569,21 @@ public static class PiecePrefabManager
             return;
         }
 
-        foreach (KeyValuePair<string, GameObject> customPiecePrefab in customPiecePrefabs)
+        foreach (KeyValuePair<GameObject,string> customPiecePrefab in customPiecePrefabs)
         {
-            if (__instance.GetPrefab(customPiecePrefab.Key)?.GetComponent<ItemDrop>().m_itemData.m_shared
+            if (__instance.GetPrefab(customPiecePrefab.Value)?.GetComponent<ItemDrop>().m_itemData.m_shared
                     .m_buildPieces is not
                 { } customPieces)
             {
                 return;
             }
 
-            if (customPieces.m_pieces.Contains(customPiecePrefab.Value))
+            if (customPieces.m_pieces.Contains(customPiecePrefab.Key))
             {
                 return;
             }
 
-            customPieces.m_pieces.Add(customPiecePrefab.Value);
+            customPieces.m_pieces.Add(customPiecePrefab.Key);
         }
 
         foreach (GameObject prefab in piecePrefabs)
