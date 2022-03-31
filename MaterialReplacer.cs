@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -13,7 +14,7 @@ namespace PieceManager
         {
             originalMaterials = new Dictionary<string, Material>();
             _objectToSwap = new Dictionary<GameObject, bool>();
-            _objectsForShaderReplace = new List<GameObject>();
+            _objectsForShaderReplace = new Dictionary<GameObject, ShaderType>();
             Harmony harmony = new("org.bepinex.helpers.PieceManager");
             harmony.Patch(AccessTools.DeclaredMethod(typeof(ZoneSystem), nameof(ZoneSystem.Start)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
@@ -21,16 +22,25 @@ namespace PieceManager
             harmony.Patch(AccessTools.DeclaredMethod(typeof(ZoneSystem), nameof(ZoneSystem.Start)),
                 postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(MaterialReplacer),
                     nameof(ReplaceAllMaterialsWithOriginal))));
+        }
+
+        public enum ShaderType
+        {
+            PieceShader,
+            VegetationShader,
+            RockShader,
+            RugShader,
+            GrassShader
             
         }
 
         private static Dictionary<GameObject, bool> _objectToSwap;
         internal static Dictionary<string, Material> originalMaterials;
-        private static List<GameObject> _objectsForShaderReplace;
+        private static Dictionary<GameObject, ShaderType> _objectsForShaderReplace;
 
-        public static void RegisterGameObjectForShaderSwap(GameObject go)
+        public static void RegisterGameObjectForShaderSwap(GameObject go, ShaderType type = ShaderType.PieceShader)
         {
-            _objectsForShaderReplace?.Add(go);
+            _objectsForShaderReplace?.Add(go, type);
         }
 
         public static void RegisterGameObjectForMatSwap(GameObject go, bool isJotunnMock = false)
@@ -92,14 +102,35 @@ namespace PieceManager
                     
                 }
             }
-            Shader customPieceShader = ZNetScene.instance.GetPrefab("piece_chest").gameObject.GetComponentInChildren<Renderer>().sharedMaterial.shader;
-            foreach (var renderer in _objectsForShaderReplace.SelectMany(gameObject => gameObject.GetComponentsInChildren<Renderer>(true)))
+            foreach (var renderer in _objectsForShaderReplace.SelectMany(gameObject => gameObject.Key.GetComponentsInChildren<Renderer>(true)))
             {
-                foreach (var t in renderer.sharedMaterials)
+                _objectsForShaderReplace.TryGetValue(renderer.gameObject, out ShaderType shaderType);
+                foreach (var t in renderer.materials)
                 {
-                    t.shader = customPieceShader;
+                    switch (shaderType)
+                    {
+                        case ShaderType.PieceShader:
+                            t.shader = Shader.Find("Custom/Piece");
+                            break;
+                        case ShaderType.VegetationShader:
+                            t.shader = Shader.Find("Custom/Vegetation");
+                            break;
+                        case ShaderType.RockShader:
+                            t.shader = Shader.Find("Custom/StaticRock");
+                            break;
+                        case ShaderType.RugShader:
+                            t.shader = Shader.Find("Custom/Rug");
+                            break;
+                        case ShaderType.GrassShader:
+                            t.shader = Shader.Find("Custom/Grass");
+                            break;
+                        default:
+                            t.shader = Shader.Find("ToonDeferredShading2017");
+                            break;
+                    }
                 }
             }
+            
         }
     }
 }
