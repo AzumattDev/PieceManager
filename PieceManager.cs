@@ -46,16 +46,15 @@ public class BuildingPieceCategoryList
 
     public void Add(BuildPieceCategory category, bool useCategories) => BuildPieceCategories.Add(
         new BuildPieceTableConfig
-            { Category = category, UseCategories = useCategories });
+            { Category = category });
 
     public void Add(string customCategory, bool useCategories) => BuildPieceCategories.Add(new BuildPieceTableConfig
-        { Category = BuildPieceCategory.Custom, UseCategories = useCategories, custom = customCategory });
+        { Category = BuildPieceCategory.Custom, custom = customCategory });
 }
 
 public struct BuildPieceTableConfig
 {
     public BuildPieceCategory Category;
-    public bool UseCategories;
     public string? custom;
 }
 
