@@ -197,7 +197,6 @@ public class BuildPiece
                         if (cfg.category.Value is BuildPieceCategory.None)
                         {
                             piece.Prefab.GetComponent<Piece>().m_category = Piece.PieceCategory.All;
-                            //activeRecipes[piece].First().m_craftingStation = null;
                         }
                         else if (cfg.category.Value is BuildPieceCategory.Custom)
                         {
