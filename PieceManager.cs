@@ -14,7 +14,6 @@ namespace PieceManager;
 [PublicAPI]
 public enum BuildPieceCategory
 {
-    None,
     Misc = 0,
     Crafting = 1,
     Building = 2,
@@ -177,6 +176,8 @@ public class BuildPiece
         
         if (ConfigurationEnabled)
         {
+            bool SaveOnConfigSet = plugin.Config.SaveOnConfigSet;
+            plugin.Config.SaveOnConfigSet = false;
             foreach (BuildPiece piece in registeredPieces)
             {
                 PieceConfig cfg = pieceConfigs[piece] = new PieceConfig();
@@ -194,23 +195,19 @@ public class BuildPiece
                 {
                     if (registeredPieces.Count > 0)
                     {
-                        if (cfg.category.Value is BuildPieceCategory.None)
-                        {
-                            piece.Prefab.GetComponent<Piece>().m_category = Piece.PieceCategory.All;
-                        }
-                        else if (cfg.category.Value is BuildPieceCategory.Custom)
+                        if (cfg.category.Value is BuildPieceCategory.Custom)
                         {
                             piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)ZNetScene.instance.GetPrefab(cfg.customCategory.Value)?.GetComponent<Piece>().m_category;
                         }
                         else
                         {
-                            piece.Prefab.GetComponent<Piece>().m_category = ZNetScene.instance.GetPrefab((typeof(BuildPieceCategory).GetMember(cfg.category.Value.ToString())[0].GetCustomAttributes(typeof(BuildPieceCategory)).First()).ToString()).GetComponent<Piece>().m_category;
+                            piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)cfg.category.Value;
                         }
                     }
                     customTableAttributes.Browsable = cfg.category.Value == BuildPieceCategory.Custom;
                     foreach (ConfigurationManagerAttributes attributes in hideWhenNoneAttributes)
                     {
-                        attributes.Browsable = cfg.category.Value != BuildPieceCategory.None;
+                        attributes.Browsable = cfg.category.Value != BuildPieceCategory.All;
                     }
                     ReloadConfigDisplay();
                 }
@@ -246,6 +243,11 @@ public class BuildPiece
                         }
                     }
                 };
+            }
+            if (SaveOnConfigSet)
+            {
+                plugin.Config.SaveOnConfigSet = true;
+                plugin.Config.Save();
             }
         }
     }
