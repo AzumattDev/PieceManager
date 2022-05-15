@@ -14,7 +14,6 @@ namespace PieceManager;
 [PublicAPI]
 public enum BuildPieceCategory
 {
-    None,
     Misc = 0,
     Crafting = 1,
     Building = 2,
@@ -47,16 +46,15 @@ public class BuildingPieceCategoryList
 
     public void Add(BuildPieceCategory category, bool useCategories) => BuildPieceCategories.Add(
         new BuildPieceTableConfig
-            { Category = category, UseCategories = useCategories });
+            { Category = category });
 
     public void Add(string customCategory, bool useCategories) => BuildPieceCategories.Add(new BuildPieceTableConfig
-        { Category = BuildPieceCategory.Custom, UseCategories = useCategories, custom = customCategory });
+        { Category = BuildPieceCategory.Custom, custom = customCategory });
 }
 
 public struct BuildPieceTableConfig
 {
     public BuildPieceCategory Category;
-    public bool UseCategories;
     public string? custom;
 }
 
@@ -168,8 +166,17 @@ public class BuildPiece
 
     internal static void Patch_FejdStartup()
     {
+        Assembly? bepinexConfigManager = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "ConfigurationManager");
+
+        Type? configManagerType = bepinexConfigManager?.GetType("ConfigurationManager.ConfigurationManager");
+        object? configManager = configManagerType == null ? null : BepInEx.Bootstrap.Chainloader.ManagerObject.GetComponent(configManagerType);
+        void ReloadConfigDisplay() => configManagerType?.GetMethod("BuildSettingList")!.Invoke(configManager, Array.Empty<object>());
+        
+        
         if (ConfigurationEnabled)
         {
+            bool SaveOnConfigSet = plugin.Config.SaveOnConfigSet;
+            plugin.Config.SaveOnConfigSet = false;
             foreach (BuildPiece piece in registeredPieces)
             {
                 PieceConfig cfg = pieceConfigs[piece] = new PieceConfig();
@@ -177,11 +184,42 @@ public class BuildPiece
                 string localizedName = new Regex("['[\"\\]]").Replace(english.Localize(pieceName), "").Trim();
 
                 int order = 0;
+                List<ConfigurationManagerAttributes> hideWhenNoneAttributes = new();
 
+
+                cfg.category = config(localizedName, "Build Table Category", piece.Category.BuildPieceCategories.First().Category, new ConfigDescription($"Build Category where {localizedName} is available.", null, new ConfigurationManagerAttributes { Order = --order }));
+                ConfigurationManagerAttributes customTableAttributes = new() { Order = --order, Browsable = cfg.category.Value == BuildPieceCategory.Custom };
+                cfg.customCategory = config(localizedName, "Custom Build Category", piece.Category.BuildPieceCategories.First().custom ?? "", new ConfigDescription("", null, customTableAttributes));
+                void BuildTableConfigChanged(object o, EventArgs e)
+                {
+                    if (registeredPieces.Count > 0)
+                    {
+                        if (cfg.category.Value is BuildPieceCategory.Custom)
+                        {
+                            piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)ZNetScene.instance.GetPrefab(cfg.customCategory.Value)?.GetComponent<Piece>().m_category;
+                        }
+                        else
+                        {
+                            piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)cfg.category.Value;
+                        }
+                    }
+                    customTableAttributes.Browsable = cfg.category.Value == BuildPieceCategory.Custom;
+                    foreach (ConfigurationManagerAttributes attributes in hideWhenNoneAttributes)
+                    {
+                        attributes.Browsable = cfg.category.Value != BuildPieceCategory.All;
+                    }
+                    ReloadConfigDisplay();
+                }
+                
+                cfg.category.SettingChanged += BuildTableConfigChanged;
+                cfg.customCategory.SettingChanged += BuildTableConfigChanged;
+
+                
+                
                 ConfigEntry<string> itemConfig(string name, string value, string desc)
                 {
                     ConfigurationManagerAttributes attributes = new()
-                        { CustomDrawer = drawConfigTable, Order = --order };
+                        { CustomDrawer = DrawConfigTable, Order = --order };
                     return config(localizedName, name, value, new ConfigDescription(desc, null, attributes));
                 }
 
@@ -205,6 +243,11 @@ public class BuildPiece
                     }
                 };
             }
+            if (SaveOnConfigSet)
+            {
+                plugin.Config.SaveOnConfigSet = true;
+                plugin.Config.Save();
+            }
         }
     }
 
@@ -225,7 +268,7 @@ public class BuildPiece
         }
     }
 
-    private static void drawConfigTable(ConfigEntryBase cfg)
+    private static void DrawConfigTable(ConfigEntryBase cfg)
     {
         bool locked = cfg.Description.Tags
             .Select(a =>
