@@ -73,7 +73,8 @@ namespace PieceManagerExampleMod
             examplePiece1.RequiredItems.Add("FineWood", 20, false); // Set the required items to build. Format: ("PrefabName", Amount, Recoverable)
             examplePiece1.RequiredItems.Add("SurtlingCore", 20, false);
             examplePiece1.Category.Add(BuildPieceCategory.Misc);
-            examplePiece1.NoConfig = true;  // Do not generate a config for this piece, omit this line of code if you want to generate a config.
+            //examplePiece1.SpecialProperties.NoConfig = true;  // Do not generate a config for this piece, omit this line of code if you want to generate a config.
+            examplePiece1.SpecialProperties = new SpecialProperties() { AdminOnly = true, NoConfig = true}; // You can declare multiple properties in one line           
 
 
             BuildPiece examplePiece2 = new("bamboo", "Bamboo_Wall"); // Note: If you wish to use the default "assets" folder for your assets, you can omit it!
@@ -81,6 +82,7 @@ namespace PieceManagerExampleMod
             examplePiece2.Description.English("A wall made of bamboo!");
             examplePiece2.RequiredItems.Add("BambooLog", 20, false);
             examplePiece2.Category.Add(BuildPieceCategory.Building);
+            examplePiece2.SpecialProperties.AdminOnly = true;  // You can declare these one at a time as well!.
 
 
             // If you want to add your item to the cultivator or another hammer with vanilla categories
@@ -89,6 +91,7 @@ namespace PieceManagerExampleMod
             examplePiece3.Name.English("Bamboo Sapling");
             examplePiece3.Description.English("A young bamboo tree, called a sapling");
             examplePiece3.RequiredItems.Add("BambooSeed", 20, false);
+            examplePiece3.SpecialProperties.NoConfig = true;
 
             // Need to add something to ZNetScene but not the hammer, cultivator or other? 
             PiecePrefabManager.RegisterPrefab("bamboo", "Bamboo_Beam_Light");
