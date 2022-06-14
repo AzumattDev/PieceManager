@@ -62,6 +62,9 @@ namespace PieceManagerExampleMod
 
         private void Awake()
         {
+            // Globally turn off configuration options for your pieces, omit if you don't want to do this.
+            BuildPiece.ConfigurationEnabled = false;
+            
             // Format: new("AssetBundleName", "PrefabName", "FolderName");
             BuildPiece examplePiece1 = new("funward", "funward", "FunWard");
 
@@ -70,6 +73,7 @@ namespace PieceManagerExampleMod
             examplePiece1.RequiredItems.Add("FineWood", 20, false); // Set the required items to build. Format: ("PrefabName", Amount, Recoverable)
             examplePiece1.RequiredItems.Add("SurtlingCore", 20, false);
             examplePiece1.Category.Add(BuildPieceCategory.Misc);
+            examplePiece1.NoConfig = true;  // Do not generate a config for this piece, omit this line of code if you want to generate a config.
 
 
             BuildPiece examplePiece2 = new("bamboo", "Bamboo_Wall"); // Note: If you wish to use the default "assets" folder for your assets, you can omit it!

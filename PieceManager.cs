@@ -71,6 +71,7 @@ public class BuildPiece
     private static readonly List<BuildPiece> registeredPieces = new();
     private static Dictionary<BuildPiece, PieceConfig> pieceConfigs = new();
 
+    [Description("Disables generation of the configs for your pieces. This is global, this turns it off for all pieces in your mod.")]
     public static bool ConfigurationEnabled = true;
 
     public readonly GameObject Prefab;
@@ -80,6 +81,9 @@ public class BuildPiece
 
     [Description("Sets the category for the building piece.")]
     public readonly BuildingPieceCategoryList Category = new();
+    
+    [Description("Turns off generating a config for this build piece.")]
+    public bool NoConfig;
 
     private LocalizeKey? _name;
 
@@ -179,6 +183,7 @@ public class BuildPiece
             plugin.Config.SaveOnConfigSet = false;
             foreach (BuildPiece piece in registeredPieces)
             {
+                if (piece.NoConfig) continue;
                 PieceConfig cfg = pieceConfigs[piece] = new PieceConfig();
                 Piece piecePrefab = piece.Prefab.GetComponent<Piece>();
                 string pieceName = piecePrefab.m_name;
@@ -186,10 +191,20 @@ public class BuildPiece
                 string localizedName = Localization.instance.Localize(pieceName).Trim();
 
                 int order = 0;
-                
-                cfg.category = config(englishName, "Build Table Category", piece.Category.BuildPieceCategories.First().Category, new ConfigDescription($"Build Category where {englishName} is available.", null, new ConfigurationManagerAttributes { Order = --order, Category = localizedName }));
-                ConfigurationManagerAttributes customTableAttributes = new() { Order = --order, Browsable = cfg.category.Value == BuildPieceCategory.Custom, Category = localizedName };
-                cfg.customCategory = config(englishName, "Custom Build Category", piece.Category.BuildPieceCategories.First().custom ?? "", new ConfigDescription("", null, customTableAttributes));
+
+                cfg.category = config(englishName, "Build Table Category",
+                    piece.Category.BuildPieceCategories.First().Category,
+                    new ConfigDescription($"Build Category where {englishName} is available.", null,
+                        new ConfigurationManagerAttributes { Order = --order, Category = localizedName }));
+                ConfigurationManagerAttributes customTableAttributes = new()
+                {
+                    Order = --order, Browsable = cfg.category.Value == BuildPieceCategory.Custom,
+                    Category = localizedName
+                };
+                cfg.customCategory = config(englishName, "Custom Build Category",
+                    piece.Category.BuildPieceCategories.First().custom ?? "",
+                    new ConfigDescription("", null, customTableAttributes));
+
                 void BuildTableConfigChanged(object o, EventArgs e)
                 {
                     if (registeredPieces.Count > 0)
@@ -204,10 +219,11 @@ public class BuildPiece
                             piecePrefab.m_category = (Piece.PieceCategory)cfg.category.Value;
                         }
                     }
+
                     customTableAttributes.Browsable = cfg.category.Value == BuildPieceCategory.Custom;
                     ReloadConfigDisplay();
                 }
-                
+
                 cfg.category.SettingChanged += BuildTableConfigChanged;
                 cfg.customCategory.SettingChanged += BuildTableConfigChanged;
 
@@ -218,7 +234,8 @@ public class BuildPiece
 
                 ConfigEntry<string> itemConfig(string name, string value, string desc)
                 {
-                    ConfigurationManagerAttributes attributes = new() { CustomDrawer = DrawConfigTable, Order = --order, Category = localizedName };
+                    ConfigurationManagerAttributes attributes = new()
+                        { CustomDrawer = DrawConfigTable, Order = --order, Category = localizedName };
                     return config(englishName, name, value, new ConfigDescription(desc, null, attributes));
                 }
 
