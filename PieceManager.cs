@@ -525,7 +525,7 @@ public class BuildPiece
         }
     }
 
-    internal static BaseUnityPlugin? _plugin;
+    internal static BaseUnityPlugin? _plugin = null!;
 
     internal static BaseUnityPlugin plugin
     {
@@ -682,7 +682,7 @@ public class AdminSyncing
     internal static void AdminStatusSync(ZNet __instance)
     {
         isServer = __instance.IsServer();
-        ZRoutedRpc.instance.Register<ZPackage>(BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync", RPC_AdminPieceAddRemove);
+        ZRoutedRpc.instance.Register<ZPackage>(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", RPC_AdminPieceAddRemove);
 
         IEnumerator WatchAdminListChanges()
         {
@@ -756,7 +756,7 @@ public class AdminSyncing
 
         void SendPackage(ZPackage pkg)
         {
-            string method = BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync";
+            string method = BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync";
             if (isServer)
             {
                 peer.m_rpc.Invoke(method, pkg);
@@ -784,12 +784,12 @@ public class AdminSyncing
         if (isServer)
         {
             ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody,
-                BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync", new ZPackage());
+                BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", new ZPackage());
             if (ZNet.instance.m_adminList.Contains(currentPeer.m_rpc.GetSocket().GetHostName()))
             {
                 ZPackage pkg = new();
                 pkg.Write(true);
-                currentPeer.m_rpc.Invoke(BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync", pkg);
+                currentPeer.m_rpc.Invoke(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", pkg);
             }
         }
         else
@@ -846,7 +846,7 @@ class RegisterClientRPCPatch
     {
         if (!__instance.IsServer())
         {
-            peer.m_rpc.Register<ZPackage>(BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync",
+            peer.m_rpc.Register<ZPackage>(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync",
                 RPC_InitialAdminSync);
         }
         else
@@ -854,7 +854,7 @@ class RegisterClientRPCPatch
             ZPackage packge = new();
             packge.Write(__instance.m_adminList.Contains(peer.m_rpc.GetSocket().GetHostName()));
 
-            peer.m_rpc.Invoke(BuildPiece._plugin.Info.Metadata.Name + " PMAdminStatusSync", packge);
+            peer.m_rpc.Invoke(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", packge);
         }
     }
 
