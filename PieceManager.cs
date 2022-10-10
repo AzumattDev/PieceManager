@@ -243,16 +243,16 @@ public class BuildPiece
 
                 int order = 0;
 
-                cfg.category = config(englishName, "Build Table Category",
+                cfg.category = config(localizedName, "Build Table Category",
                     piece.Category.BuildPieceCategories.First().Category,
-                    new ConfigDescription($"Build Category where {englishName} is available.", null,
+                    new ConfigDescription($"Build Category where {localizedName} is available.", null,
                         new ConfigurationManagerAttributes { Order = --order, Category = localizedName }));
                 ConfigurationManagerAttributes customTableAttributes = new()
                 {
                     Order = --order, Browsable = cfg.category.Value == BuildPieceCategory.Custom,
                     Category = localizedName
                 };
-                cfg.customCategory = config(englishName, "Custom Build Category",
+                cfg.customCategory = config(localizedName, "Custom Build Category",
                     piece.Category.BuildPieceCategories.First().custom ?? "",
                     new ConfigDescription("", null, customTableAttributes));
 
@@ -314,6 +314,7 @@ public class BuildPiece
 							attributes.Browsable = cfg.table.Value != CraftingTable.None;
 						}
                         ReloadConfigDisplay();
+                        plugin.Config.Save();
 					}
 					cfg.table.SettingChanged += TableConfigChanged;
 					cfg.customTable.SettingChanged += TableConfigChanged;
@@ -326,12 +327,12 @@ public class BuildPiece
                 {
                     ConfigurationManagerAttributes attributes = new()
                         { CustomDrawer = DrawConfigTable, Order = --order, Category = localizedName };
-                    return config(englishName, name, value, new ConfigDescription(desc, null, attributes));
+                    return config(localizedName, name, value, new ConfigDescription(desc, null, attributes));
                 }
 
                 cfg.craft = itemConfig("Crafting Costs",
                     new SerializedRequirements(piece.RequiredItems.Requirements).ToString(),
-                    $"Item costs to craft {englishName}");
+                    $"Item costs to craft {localizedName}");
                 cfg.craft.SettingChanged += (_, _) =>
                 {
                     if (ObjectDB.instance && ObjectDB.instance.GetItemPrefab("Wood") != null)
@@ -391,7 +392,18 @@ public class BuildPiece
                 }
                 else
                 {
-                    piece.Prefab.GetComponent<Piece>().m_craftingStation = ZNetScene.instance.GetPrefab(((InternalName)typeof(CraftingTable).GetMember((cfg == null || piece.Crafting.Stations.Count > 0 ? station.Table : cfg.table.Value).ToString())[0].GetCustomAttributes(typeof(InternalName)).First()).internalName).GetComponent<CraftingStation>();
+                    if (cfg != null && cfg.table.Value == CraftingTable.None)
+                    {
+                        piece.Prefab.GetComponent<Piece>().m_craftingStation = null;
+                    }
+                    else
+                    {
+                        piece.Prefab.GetComponent<Piece>().m_craftingStation = ZNetScene.instance
+                            .GetPrefab(((InternalName)typeof(CraftingTable).GetMember(
+                                (cfg == null || piece.Crafting.Stations.Count > 0 ? station.Table : cfg.table.Value)
+                                .ToString())[0].GetCustomAttributes(typeof(InternalName)).First()).internalName)
+                            .GetComponent<CraftingStation>();
+                    }
                 }
             }
 
