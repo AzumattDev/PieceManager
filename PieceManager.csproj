@@ -91,6 +91,7 @@
     <ItemGroup>
         <Compile Include="MaterialReplacer.cs" />
         <Compile Include="PieceManager.cs" />
+        <Compile Include="Plugin.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
         <Compile Include="SnapPointMaker.cs" />
     </ItemGroup>

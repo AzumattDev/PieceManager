@@ -95,12 +95,17 @@ public class BuildingPieceCategoryList
 
     public void Add(string customCategory) => BuildPieceCategories.Add(new BuildPieceTableConfig
         { Category = BuildPieceCategory.Custom, custom = customCategory });
+    // Custom hammer and custom category
+    [Description("Specifies what hammer/PieceTable this build piece is associated with and what category it should be placed in.")]
+    public void Add(string customHammer, string customCategory) => BuildPieceCategories.Add(new BuildPieceTableConfig
+        { Category = BuildPieceCategory.Custom, customHammer = customHammer, custom = customCategory });
 }
 
 public struct BuildPieceTableConfig
 {
     public BuildPieceCategory Category;
     public string? custom;
+    public string? customHammer;
 }
 
 [PublicAPI]
@@ -111,6 +116,7 @@ public class BuildPiece
         public ConfigEntry<string> craft = null!;
         public ConfigEntry<BuildPieceCategory> category = null!;
         public ConfigEntry<string> customCategory = null!;
+        public ConfigEntry<string> customHammer = null!;
         public ConfigEntry<CraftingTable> table = null!;
         public ConfigEntry<string> customTable = null!;
     }
@@ -243,17 +249,20 @@ public class BuildPiece
 
                 int order = 0;
 
-                cfg.category = config(englishName, "Build Table Category",
+                cfg.category = config(localizedName, "Build Table Category",
                     piece.Category.BuildPieceCategories.First().Category,
-                    new ConfigDescription($"Build Category where {englishName} is available.", null,
+                    new ConfigDescription($"Build Category where {localizedName} is available.", null,
                         new ConfigurationManagerAttributes { Order = --order, Category = localizedName }));
                 ConfigurationManagerAttributes customTableAttributes = new()
                 {
                     Order = --order, Browsable = cfg.category.Value == BuildPieceCategory.Custom,
                     Category = localizedName
                 };
-                cfg.customCategory = config(englishName, "Custom Build Category",
+                cfg.customCategory = config(localizedName, "Custom Build Category",
                     piece.Category.BuildPieceCategories.First().custom ?? "",
+                    new ConfigDescription("", null, customTableAttributes));
+                cfg.customHammer = config(localizedName, "Custom Hammer",
+                    piece.Category.BuildPieceCategories.First().customHammer ?? "",
                     new ConfigDescription("", null, customTableAttributes));
 
                 void BuildTableConfigChanged(object o, EventArgs e)
@@ -262,8 +271,10 @@ public class BuildPiece
                     {
                         if (cfg.category.Value is BuildPieceCategory.Custom)
                         {
-                            // broken
-                            // piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)ZNetScene.instance.GetPrefab(cfg.customCategory.Value)?.GetComponent<Piece>().m_category;
+                             //broken
+                             piecePrefab.m_category = (Piece.PieceCategory)ZNetScene.instance
+                                 .GetPrefab(cfg.customHammer.Value)?.GetComponent<ItemDrop>().m_itemData.m_shared
+                                 .m_buildPieces.m_pieces;
                         }
                         else
                         {
@@ -326,12 +337,12 @@ public class BuildPiece
                 {
                     ConfigurationManagerAttributes attributes = new()
                         { CustomDrawer = DrawConfigTable, Order = --order, Category = localizedName };
-                    return config(englishName, name, value, new ConfigDescription(desc, null, attributes));
+                    return config(localizedName, name, value, new ConfigDescription(desc, null, attributes));
                 }
 
                 cfg.craft = itemConfig("Crafting Costs",
                     new SerializedRequirements(piece.RequiredItems.Requirements).ToString(),
-                    $"Item costs to craft {englishName}");
+                    $"Item costs to craft {localizedName}");
                 cfg.craft.SettingChanged += (_, _) =>
                 {
                     if (ObjectDB.instance && ObjectDB.instance.GetItemPrefab("Wood") != null)
