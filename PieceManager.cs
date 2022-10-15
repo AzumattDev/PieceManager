@@ -719,15 +719,15 @@ public class AdminSyncing
 
         IEnumerator WatchAdminListChanges()
         {
-            List<string> CurrentList = new(ZNet.instance.m_adminList.GetList());
+            List<string> currentList = new(ZNet.instance.m_adminList.GetList());
             for (;;)
             {
                 yield return new WaitForSeconds(30);
-                if (!ZNet.instance.m_adminList.GetList().SequenceEqual(CurrentList))
+                if (!ZNet.instance.m_adminList.GetList().SequenceEqual(currentList))
                 {
-                    CurrentList = new List<string>(ZNet.instance.m_adminList.GetList());
+                    currentList = new List<string>(ZNet.instance.m_adminList.GetList());
                     List<ZNetPeer> adminPeer = ZNet.instance.GetPeers().Where(p =>
-                        ZNet.instance.m_adminList.Contains(p.m_rpc.GetSocket().GetHostName())).ToList();
+                        ZNet.instance.ListContainsId(ZNet.instance.m_adminList,p.m_rpc.GetSocket().GetHostName())).ToList();
                     List<ZNetPeer> nonAdminPeer = ZNet.instance.GetPeers().Except(adminPeer).ToList();
                     SendAdmin(nonAdminPeer, false);
                     SendAdmin(adminPeer, true);
@@ -818,7 +818,7 @@ public class AdminSyncing
         {
             ZRoutedRpc.instance.InvokeRoutedRPC(ZRoutedRpc.Everybody,
                 BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", new ZPackage());
-            if (ZNet.instance.m_adminList.Contains(currentPeer.m_rpc.GetSocket().GetHostName()))
+            if (ZNet.instance.ListContainsId(ZNet.instance.m_adminList,currentPeer.m_rpc.GetSocket().GetHostName()))
             {
                 ZPackage pkg = new();
                 pkg.Write(true);
@@ -885,7 +885,7 @@ class RegisterClientRPCPatch
         else
         {
             ZPackage packge = new();
-            packge.Write(__instance.m_adminList.Contains(peer.m_rpc.GetSocket().GetHostName()));
+            packge.Write(__instance.ListContainsId(__instance.m_adminList,peer.m_rpc.GetSocket().GetHostName()));
 
             peer.m_rpc.Invoke(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync", packge);
         }
