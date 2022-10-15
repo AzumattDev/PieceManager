@@ -409,6 +409,66 @@ public class BuildPiece
 
         }
     }
+    
+    	public void Snapshot(float lightIntensity = 1.3f, Quaternion? cameraRotation = null) => SnapshotItem(Prefab.GetComponent<ItemDrop>(), lightIntensity, cameraRotation);
+	public static void SnapshotItem(ItemDrop item, float lightIntensity = 1.3f, Quaternion? cameraRotation = null)
+	{
+		const int layer = 30;
+
+		Camera camera = new GameObject("Camera", typeof(Camera)).GetComponent<Camera>();
+		camera.backgroundColor = Color.clear;
+		camera.clearFlags = CameraClearFlags.SolidColor;
+		camera.fieldOfView = 0.5f;
+		camera.farClipPlane = 10000000;
+		camera.cullingMask = 1 << layer;
+		camera.transform.rotation = cameraRotation ?? Quaternion.Euler(90, 0, 45);
+
+		Light topLight = new GameObject("Light", typeof(Light)).GetComponent<Light>();
+		topLight.transform.rotation = Quaternion.Euler(150, 0, -5f);
+		topLight.type = LightType.Directional;
+		topLight.cullingMask = 1 << layer;
+		topLight.intensity = lightIntensity;
+		
+		Rect rect = new(0, 0, 64, 64);
+
+		GameObject visual = UnityEngine.Object.Instantiate(item.transform.Find("attach").gameObject);
+		foreach (Transform child in visual.GetComponentsInChildren<Transform>())
+		{
+			child.gameObject.layer = layer;
+		}
+
+		Renderer[] renderers = visual.GetComponentsInChildren<Renderer>();
+		Vector3 min = renderers.Aggregate(Vector3.positiveInfinity, (cur, renderer) => renderer is ParticleSystemRenderer ? cur : Vector3.Min(cur, renderer.bounds.min));
+		Vector3 max = renderers.Aggregate(Vector3.negativeInfinity, (cur, renderer) => renderer is ParticleSystemRenderer ? cur : Vector3.Max(cur, renderer.bounds.max));
+		Vector3 size = max - min;
+
+		camera.targetTexture = RenderTexture.GetTemporary((int)rect.width, (int)rect.height);
+		float maxDim = Mathf.Max(size.x, size.z);
+		float minDim = Mathf.Min(size.x, size.z);
+		float yDist = (maxDim + minDim) / Mathf.Sqrt(2) / Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
+		Transform transform = camera.transform;
+		transform.position = ((min + max) / 2) with { y = max.y } + new Vector3(0, yDist, 0);
+		topLight.transform.position = transform.position + new Vector3(-2, 0, 0.2f) / 3 * -yDist;
+
+		camera.Render();
+
+		RenderTexture currentRenderTexture = RenderTexture.active;
+		RenderTexture.active = camera.targetTexture;
+
+		Texture2D texture = new((int)rect.width, (int)rect.height, TextureFormat.RGBA32, false);
+		texture.ReadPixels(rect, 0, 0);
+		texture.Apply();
+
+		RenderTexture.active = currentRenderTexture;
+
+		item.m_itemData.m_shared.m_icons = new[] { Sprite.Create(texture, rect, new Vector2(0.5f, 0.5f)) };
+
+		UnityEngine.Object.DestroyImmediate(visual);
+		camera.targetTexture.Release();
+
+		UnityEngine.Object.Destroy(camera);
+		UnityEngine.Object.Destroy(topLight);
+	}
 
     private static void DrawConfigTable(ConfigEntryBase cfg)
     {
@@ -525,17 +585,7 @@ public class BuildPiece
 
     private static Localization? _english;
 
-    private static Localization english
-    {
-        get
-        {
-            if (_english != null) return _english;
-            _english = new Localization();
-            _english.SetupLanguage("English");
-
-            return _english;
-        }
-    }
+    private static Localization english => _english ??= LocalizationCache.ForLanguage("English");
 
     internal static BaseUnityPlugin? _plugin = null!;
 
@@ -683,6 +733,37 @@ public class LocalizeKey
                 Localization.instance.AddWord(key.Key, Localization.instance.Localize(alias));
             }
         }
+    }
+}
+
+public static class LocalizationCache
+{
+    private static readonly Dictionary<string, Localization> localizations = new();
+
+    internal static void LocalizationPostfix(Localization __instance, string language)
+    {
+        if (localizations.FirstOrDefault(l => l.Value == __instance).Key is { } oldValue)
+        {
+            localizations.Remove(oldValue);
+        }
+        if (!localizations.ContainsKey(language))
+        {
+            localizations.Add(language, __instance);
+        }
+    }
+
+    public static Localization ForLanguage(string? language = null)
+    {
+        if (localizations.TryGetValue(language ?? PlayerPrefs.GetString("language", "English"), out Localization localization))
+        {
+            return localization;
+        }
+        localization = new Localization();
+        if (language is not null)
+        {
+            localization.SetupLanguage(language);
+        }
+        return localization;
     }
 }
 
@@ -897,6 +978,9 @@ public static class PiecePrefabManager
         harmony.Patch(AccessTools.DeclaredMethod(typeof(ObjectDB), nameof(ObjectDB.Awake)),
             postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(BuildPiece),
                 nameof(BuildPiece.Patch_ObjectDBInit))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(Localization), nameof(Localization.SetupLanguage)),
+            postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(LocalizationCache),
+                nameof(LocalizationCache.LocalizationPostfix))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Localization), nameof(Localization.LoadCSV)),
             postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(LocalizeKey),
                 nameof(LocalizeKey.AddLocalizedKeys))));
