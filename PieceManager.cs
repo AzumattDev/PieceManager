@@ -960,13 +960,26 @@ public static class LocalizationCache
 public class AdminSyncing
 {
     private static bool isServer;
+    internal static bool registeredOnClient;
 
     [HarmonyPriority(Priority.VeryHigh)]
     internal static void AdminStatusSync(ZNet __instance)
     {
         isServer = __instance.IsServer();
-        ZRoutedRpc.instance.Register<ZPackage>(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync",
-            RPC_AdminPieceAddRemove);
+        if (BuildPiece._plugin is not null)
+        {
+            if (isServer)
+            {
+                ZRoutedRpc.instance.Register<ZPackage>(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync",
+                    RPC_AdminPieceAddRemove);
+            }
+            else if (!registeredOnClient)
+            {
+                ZRoutedRpc.instance.Register<ZPackage>(BuildPiece._plugin?.Info.Metadata.Name + " PMAdminStatusSync",
+                    RPC_AdminPieceAddRemove);
+                registeredOnClient = true;
+            }
+        }
 
         IEnumerator WatchAdminListChanges()
         {
