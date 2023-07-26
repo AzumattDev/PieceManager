@@ -72,28 +72,34 @@ namespace PieceManagerExampleMod
             examplePiece1.Description.English("Ward For testing the Piece Manager");
             examplePiece1.RequiredItems.Add("FineWood", 20, false); // Set the required items to build. Format: ("PrefabName", Amount, Recoverable)
             examplePiece1.RequiredItems.Add("SurtlingCore", 20, false);
-            examplePiece1.Category.Add(BuildPieceCategory.Misc);
+            examplePiece1.Category.Set(BuildPieceCategory.Misc);
+            //examplePiece1.Category.Set("CUSTOMCATEGORY"); // You can set a custom category for your piece. Instead of the default ones like above.
             examplePiece1.Crafting.Set(CraftingTable.ArtisanTable); // Set a crafting station requirement for the piece.
             examplePiece1.Extension.Set(CraftingTable.Forge, 2); // Makes this piece a station extension, can change the max station distance by changing the second value. Use strings for custom tables.
             //examplePiece1.Crafting.Set("CUSTOMTABLE"); // If you have a custom table you're adding to the game. Just set it like this.
             //examplePiece1.SpecialProperties.NoConfig = true;  // Do not generate a config for this piece, omit this line of code if you want to generate a config.
             examplePiece1.SpecialProperties = new SpecialProperties() { AdminOnly = true, NoConfig = true}; // You can declare multiple properties in one line           
-
+            
+            // Add your piece to the hammer, cultivator or other.
+            examplePiece1.Tool.Add("Cultivator"); // Format: yourvariable.Tool.Add("Item that has a piecetable")
 
             BuildPiece examplePiece2 = new("bamboo", "Bamboo_Wall"); // Note: If you wish to use the default "assets" folder for your assets, you can omit it!
             examplePiece2.Name.English("Bamboo Wall");
             examplePiece2.Description.English("A wall made of bamboo!");
             examplePiece2.RequiredItems.Add("BambooLog", 20, false);
-            examplePiece2.Category.Add(BuildPieceCategory.Building);
+            examplePiece2.Category.Set(BuildPieceCategory.Building);
+            examplePiece2.Crafting.Set(CraftingTable.ArtisanTable);
             examplePiece2.SpecialProperties.AdminOnly = true;  // You can declare these one at a time as well!.
 
 
-            // If you want to add your item to the cultivator or another hammer with vanilla categories
-            // Format: (AssetBundle, "PrefabName", addToCustom, "Item that has a piecetable")
-            BuildPiece examplePiece3 = new(PiecePrefabManager.RegisterAssetBundle("bamboo"), "Bamboo_Sapling", true, "Cultivator");
+            // If you want to add your item to the Cultivator or another hammer
+            BuildPiece examplePiece3 = new("bamboo", "Bamboo_Sapling");
             examplePiece3.Name.English("Bamboo Sapling");
             examplePiece3.Description.English("A young bamboo tree, called a sapling");
+            examplePiece3.Category.Set(BuildPieceCategory.Building);
+            examplePiece3.Crafting.Set(CraftingTable.Workbench);
             examplePiece3.RequiredItems.Add("BambooSeed", 20, false);
+            examplePiece3.Tool.Add("Cultivator"); // Format: ("Item that has a piecetable")
             examplePiece3.SpecialProperties.NoConfig = true;
 
             // Need to add something to ZNetScene but not the hammer, cultivator or other? 
@@ -109,7 +115,59 @@ namespace PieceManagerExampleMod
             //MaterialReplacer.RegisterGameObjectForShaderSwap(examplePiece3.Prefab, MaterialReplacer.ShaderType.PieceShader);
 
             // Detailed instructions on how to use the MaterialReplacer can be found on the current PieceManager Wiki. https://github.com/AzumattDev/PieceManager/wiki
+            
+            //If you need to add snappoints to your piece, you can use the SnapPointMaker class.
+            // Detailed instructions on how to use the SnapPointMaker can be found on the current PieceManager Wiki. https://github.com/AzumattDev/PieceManager/wiki
+            SnapPointMaker.AddObjectForSnapPoints(examplePiece3.Prefab);
+            SnapPointMaker.ApplySnapPoints(SnapPointType.Vertices | SnapPointType.Center);
         }
     }
 }
 ```
+
+# SnapPointMaker
+
+## Overview
+
+`SnapPointMaker` is a static class used to create snap points on `GameObject`s in Unity. A snap point is a specific point on a `GameObject` where other objects can "snap" or attach to, based on a game's mechanics.
+
+Supported collider types are `BoxCollider` and `SphereCollider`. You can specify the types of snap points you want to create using the `SnapPointType` enumeration.
+
+## Usage
+
+### Add Object for Snap Points
+
+To register a `GameObject` for snap points creation, use the `AddObjectForSnapPoints` method:
+
+```csharp
+SnapPointMaker.AddObjectForSnapPoints(myGameObject);
+```
+
+### Apply Snap Points
+
+To apply snap points to all registered `GameObject`s, use the `ApplySnapPoints` method:
+
+```csharp
+SnapPointMaker.ApplySnapPoints(SnapPointType.Vertices | SnapPointType.Center);
+```
+
+This example will apply snap points at the vertices and the center of the registered game objects, given they have either a `BoxCollider` or a `SphereCollider` component.
+
+## SnapPointType Enumeration
+
+`SnapPointType` is an enumeration used to specify the types of snap points to create:
+
+* `Vertices`: Snap points will be created at the vertices of a `BoxCollider`.
+* `Center`: A snap point will be created at the center of the collider.
+* `Poles`: Snap points will be created at the top and bottom of a `SphereCollider`.
+* `Equator`: Snap points will be created at the cardinal directions on the equator of a `SphereCollider`.
+
+These enumeration values can be combined using the bitwise OR operator (`|`). For example, `SnapPointType.Vertices | SnapPointType.Center` will create snap points at both the vertices and the center.
+
+## Note
+
+The `SnapPointMaker` currently supports `BoxCollider` and `SphereCollider` types. If your `GameObject` has a different type of collider, you will need to provide additional logic to determine the snap points. The `Unsupported collider type` warning will be displayed in the console for unsupported collider types.
+
+## Improvements
+
+The snap points created by the `SnapPointMaker` are static and do not adjust dynamically if the `GameObject` changes shape or size. If you require dynamic snap points, you'd have to implement a system that updates snap points in response to changes to the `GameObject`.
