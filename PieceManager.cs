@@ -14,6 +14,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.UI;
+using static CharacterAnimEvent;
 using Object = UnityEngine.Object;
 
 namespace PieceManager;
@@ -236,6 +237,22 @@ public class BuildPiece
     public BuildPiece(string assetBundleFileName, string prefabName, string folderName = "assets") : this(
         PiecePrefabManager.RegisterAssetBundle(assetBundleFileName, folderName), prefabName)
     {
+    }
+    public BuildPiece( string prefabName, string newName, bool mock =true) : this (
+        PiecePrefabManager.Searchforprefab(prefabName), newName)
+    {
+    }
+
+    public BuildPiece(GameObject existingPrefab, string newPrefab)
+    {
+        if (existingPrefab != null)
+        {
+            Prefab = PiecePrefabManager.RegisterPrefab(existingPrefab, newPrefab);
+            registeredPieces.Add(this);
+        } else
+        {
+            Debug.LogWarning(existingPrefab.name + " Not found for mock");
+        }
     }
 
     public BuildPiece(AssetBundle bundle, string prefabName)
@@ -1223,6 +1240,7 @@ class RegisterClientRPCPatch
         AdminSyncing.RPC_AdminPieceAddRemove(0, package);
 }
 
+
 public static class PiecePrefabManager
 {
     static PiecePrefabManager()
@@ -1249,6 +1267,12 @@ public static class PiecePrefabManager
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Hud), nameof(Hud.Awake)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(Hud_AwakeCreateTabs))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Enum), nameof(Enum.GetValues)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(EnumGetValuesPatch))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Enum), nameof(Enum.GetNames)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(EnumGetNamesPatch))));
+
+        PrefabContainer = new GameObject("Prefabs");
+        PrefabContainer.SetActive(false);
+
+        
+
     }
 
     private struct BundleId
@@ -1258,6 +1282,8 @@ public static class PiecePrefabManager
     }
 
     private static readonly Dictionary<BundleId, AssetBundle> bundleCache = new();
+    private static GameObject PrefabContainer;
+    public static Piece[] allstartingPieces = null;
 
     public static AssetBundle RegisterAssetBundle(string assetBundleFileName, string folderName = "assets")
     {
@@ -1272,6 +1298,39 @@ public static class PiecePrefabManager
         }
 
         return assets;
+    }
+
+    private static void LoadPiecesCache()
+    {
+        if (allstartingPieces == null)
+            allstartingPieces = Resources.FindObjectsOfTypeAll<Piece>(); // need to cache across all PieceManager Versions but this only loads if mock
+    }
+    public static GameObject Searchforprefab(string prefabName)
+    {
+        GameObject found = null;
+        // hard to search for prefabs when they dont' exist yet...
+        foreach (var pie in piecePrefabs)
+        {
+            if (pie.name == prefabName)
+            {
+                return pie;
+            }
+        }
+        LoadPiecesCache();
+        foreach (var unityObject in allstartingPieces)
+        {
+            string name = unityObject.name;
+            if (name == prefabName)
+                return unityObject.gameObject;
+        }
+
+        int hash = prefabName.GetStableHashCode();
+        if (ZNetScene.instance && ZNetScene.instance.m_namedPrefabs.TryGetValue(hash, out var prefab))
+        {
+            return prefab;
+        }
+
+        return null;
     }
 
     public static IEnumerable<GameObject> FixRefs(AssetBundle assetBundle)
@@ -1300,6 +1359,15 @@ public static class PiecePrefabManager
             MaterialReplacer.RegisterGameObjectForShaderSwap(gameObject, MaterialReplacer.ShaderType.UseUnityShader);
         }
 
+        piecePrefabs.Add(prefab);
+
+        return prefab;
+    }
+
+    public static GameObject RegisterPrefab(GameObject existing, string NewObjectName) // mock
+    {
+        GameObject prefab = Object.Instantiate(existing, PrefabContainer.transform, false);
+        prefab.name = NewObjectName;
         piecePrefabs.Add(prefab);
 
         return prefab;
