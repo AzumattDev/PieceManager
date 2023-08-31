@@ -29,7 +29,7 @@ namespace PieceManager
             RugShader,
             GrassShader,
             CustomCreature,
-            UseUnityShader
+            UseUnityShader,
         }
 
         private static readonly Dictionary<GameObject, bool> ObjectToSwap;

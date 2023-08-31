@@ -26,7 +26,7 @@ namespace PieceManager
             Vertices,
             Center,
             Poles,
-            Equator
+            Equator,
         }
 
         public static void AddObjectForSnapPoints(GameObject obj)
