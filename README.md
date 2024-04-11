@@ -55,7 +55,7 @@ namespace PieceManagerExampleMod
     {
         private const string ModName = "PieceManagerExampleMod";
         private const string ModVersion = "1.0.0";
-        internal const string Author = "azumatt";
+        internal const string Author = "Azumatt";
         private const string ModGUID = Author + "." + ModName;
         private static string ConfigFileName = ModGUID + ".cfg";
         private static string ConfigFileFullPath = Paths.ConfigPath + Path.DirectorySeparatorChar + ConfigFileName;
