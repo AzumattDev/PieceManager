@@ -1492,7 +1492,7 @@ public static class PiecePrefabManager
 
     internal static void CreateCategoryTabs()
     {
-        int maxCategory = MaxCategory();
+        int maxCategory = ModifiedMaxCategory();
 
         // Fill empty category names to prevent index issues, the correct names are set by the respective mods later
         for (int i = Hud.instance.m_buildCategoryNames.Count; i < maxCategory; ++i)
@@ -1537,9 +1537,9 @@ public static class PiecePrefabManager
         return newTab;
     }
 
-    private static int MaxCategory() => Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
+    private static int ModifiedMaxCategory() => Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
 
-    private static int TryGetVanillaCategory()
+    private static int GetMaxCategoryOrDefault()
     {
         try
         {
@@ -1554,13 +1554,13 @@ public static class PiecePrefabManager
 
     private static List<CodeInstruction> TranspileMaxCategory(IEnumerable<CodeInstruction> instructions, int maxOffset)
     {
-        int number = TryGetVanillaCategory() + maxOffset;
+        int number = GetMaxCategoryOrDefault() + maxOffset;
         List<CodeInstruction> newInstructions = new();
         foreach (CodeInstruction instruction in instructions)
         {
             if (instruction.LoadsConstant(number))
             {
-                newInstructions.Add(new CodeInstruction(OpCodes.Call, AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(MaxCategory))));
+                newInstructions.Add(new CodeInstruction(OpCodes.Call, AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ModifiedMaxCategory))));
                 if (maxOffset != 0)
                 {
                     newInstructions.Add(new CodeInstruction(OpCodes.Ldc_I4, maxOffset));
@@ -1739,7 +1739,7 @@ public static class PiecePrefabManager
     {
         if (__instance.m_availablePieces.Count > 0)
         {
-            int missing = MaxCategory() - __instance.m_availablePieces.Count;
+            int missing = ModifiedMaxCategory() - __instance.m_availablePieces.Count;
             for (int i = 0; i < missing; i++)
             {
                 __instance.m_availablePieces.Add(new List<Piece>());
