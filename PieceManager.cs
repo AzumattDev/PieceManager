@@ -1537,7 +1537,18 @@ public static class PiecePrefabManager
         return newTab;
     }
 
-    private static int MaxCategory() => Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
+    private static int MaxCategory()
+    {
+        try
+        {
+            return (int)Enum.Parse(typeof(Piece.PieceCategory), "Max");
+        }
+        catch (ArgumentException)
+        {
+            Debug.LogWarning("Could not find Piece.PieceCategory.Max, using fallback value 4");
+            return 4;
+        }
+    }
 
     private static List<CodeInstruction> TranspileMaxCategory(IEnumerable<CodeInstruction> instructions, int maxOffset)
     {
