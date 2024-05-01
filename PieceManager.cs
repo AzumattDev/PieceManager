@@ -1537,7 +1537,9 @@ public static class PiecePrefabManager
         return newTab;
     }
 
-    private static int MaxCategory()
+    private static int MaxCategory() => Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
+
+    private static int TryGetVanillaCategory()
     {
         try
         {
@@ -1552,7 +1554,7 @@ public static class PiecePrefabManager
 
     private static List<CodeInstruction> TranspileMaxCategory(IEnumerable<CodeInstruction> instructions, int maxOffset)
     {
-        int number = MaxCategory() + maxOffset;
+        int number = TryGetVanillaCategory() + maxOffset;
         List<CodeInstruction> newInstructions = new();
         foreach (CodeInstruction instruction in instructions)
         {
