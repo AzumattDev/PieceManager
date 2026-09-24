@@ -86,8 +86,21 @@ public enum BuildPieceCategory
     BuildingWorkbench = 2,
     BuildingStonecutter = 3,
     Furniture = 4,
+    DeepNorth = 5,
+    Feasts = 6,
+    Food = 7,
+    Meads = 8,
     All = 100,
     Custom = 99,
+}
+
+[PublicAPI]
+public class PieceUsage
+{
+    public Piece.UsageTagFlags Tags;
+
+    public void Add(Piece.UsageTagFlags tag) => Tags |= tag;
+    public void Set(Piece.UsageTagFlags tags) => Tags = tags;
 }
 
 [PublicAPI]
@@ -145,6 +158,7 @@ public class BuildPiece
         public ConfigEntry<string> craft = null!;
         public ConfigEntry<BuildPieceCategory> category = null!;
         public ConfigEntry<string> customCategory = null!;
+        public ConfigEntry<Piece.UsageTagFlags> usage = null!;
         public ConfigEntry<string> tools = null!;
         public ConfigEntry<CraftingTable> extensionTable = null!;
         public ConfigEntry<string> customExtentionTable = null!;
@@ -170,6 +184,9 @@ public class BuildPiece
 
     [Description("Sets the category for the building piece.")]
     public readonly BuildingPieceCategory Category = new();
+
+    [Description("Sets which tags the piece is listed under in the build menu.\nLeave it empty and one gets picked from the category.")]
+    public readonly PieceUsage Usage = new();
 
     [Description("Specifies the tool needed to build your piece.\nUse .Add to add a tool.")]
     public readonly PieceTool Tool = new();
@@ -282,13 +299,23 @@ public class BuildPiece
         foreach (BuildPiece piece in registeredPieces)
         {
             piece.activeTools = piece.Tool.Tools.DefaultIfEmpty("Hammer").ToArray();
+            Piece prefab = piece.Prefab.GetComponent<Piece>();
             if (piece.Category.Category != BuildPieceCategory.Custom)
             {
-                piece.Prefab.GetComponent<Piece>().m_category = (Piece.PieceCategory)piece.Category.Category;
+                prefab.m_category = (Piece.PieceCategory)piece.Category.Category;
             }
             else
             {
-                piece.Prefab.GetComponent<Piece>().m_category = PiecePrefabManager.GetCategory(piece.Category.custom);
+                prefab.m_category = PiecePrefabManager.GetCategory(piece.Category.custom);
+            }
+
+            if (piece.Usage.Tags != 0)
+            {
+                prefab.m_usage = piece.Usage.Tags;
+            }
+            else if (prefab.m_usage == 0)
+            {
+                prefab.m_usage = DefaultUsageFor(prefab.m_category);
             }
         }
 
@@ -331,9 +358,10 @@ public class BuildPiece
                         }
 
                         if (Hud.instance)
-                        { 
+                        {
                             PiecePrefabManager.CategoryRefreshNeeded = true;
                             PiecePrefabManager.CreateCategoryTabs();
+                            PiecePrefabManager.RefreshBuildMenu();
                         }
                     }
 
@@ -352,6 +380,16 @@ public class BuildPiece
                 {
                     piecePrefab.m_category = (Piece.PieceCategory)cfg.category.Value;
                 }
+
+                cfg.usage = config(englishName, "Build Menu Tags", piecePrefab.m_usage,
+                    new ConfigDescription($"Tags {localizedName} is listed under in the build menu.", null,
+                        new ConfigurationManagerAttributes { Order = --order, Category = localizedName }));
+                piecePrefab.m_usage = cfg.usage.Value;
+                cfg.usage.SettingChanged += (_, _) =>
+                {
+                    piecePrefab.m_usage = cfg.usage.Value;
+                    PiecePrefabManager.RefreshBuildMenu();
+                };
 
                 cfg.tools = config(englishName, "Tools", string.Join(", ", piece.activeTools), new ConfigDescription($"Comma separated list of tools where {localizedName} is available.", null, customTableAttributes));
                 piece.activeTools = cfg.tools.Value.Split(',').Select(s => s.Trim()).ToArray();
@@ -391,6 +429,7 @@ public class BuildPiece
                         if (Player.m_localPlayer && Player.m_localPlayer.m_buildPieces)
                         {
                             PiecePrefabManager.CategoryRefreshNeeded = true;
+                            PiecePrefabManager.RefreshBuildMenu();
                             Player.m_localPlayer.SetPlaceMode(Player.m_localPlayer.m_buildPieces);
                         }
                     }
@@ -557,7 +596,7 @@ public class BuildPiece
 
                 piece.InitializeNewRegisteredPiece(piece);
             }
-            
+
             if (SaveOnConfigSet)
             {
                 plugin.Config.SaveOnConfigSet = true;
@@ -565,6 +604,18 @@ public class BuildPiece
             }
         }
     }
+
+    private static Piece.UsageTagFlags DefaultUsageFor(Piece.PieceCategory category) => category switch
+    {
+        Piece.PieceCategory.Crafting => Piece.UsageTagFlags.Crafting,
+        Piece.PieceCategory.BuildingWorkbench or Piece.PieceCategory.BuildingStonecutter => Piece.UsageTagFlags.Building,
+        Piece.PieceCategory.Furniture => Piece.UsageTagFlags.Furniture,
+        Piece.PieceCategory.Food => Piece.UsageTagFlags.Food,
+        Piece.PieceCategory.Meads => Piece.UsageTagFlags.Meads,
+        Piece.PieceCategory.Feasts => Piece.UsageTagFlags.Feasts,
+        _ => Piece.UsageTagFlags.Misc,
+    };
+
     private void InitializeNewRegisteredPiece(BuildPiece piece)
     {
             if (piece.RecipeIsActive is { } enabledCfg)
@@ -590,7 +641,7 @@ public class BuildPiece
 
                 enabledCfg.GetType().GetEvent(nameof(ConfigEntry<int>.SettingChanged)).AddEventHandler(enabledCfg, new EventHandler(ConfigChanged));
             }
-        
+
     }
 
     [HarmonyPriority(Priority.VeryHigh)]
@@ -1353,8 +1404,13 @@ public static class PiecePrefabManager
         harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)), new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(Patch_ZNetSceneAwake))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(ZNetScene), nameof(ZNetScene.Awake)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(RefFixPatch_ZNetSceneAwake))));
 
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(Localization), nameof(Localization.SetupLanguage)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ReaddCategoryWords))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(ByUsagePieceList), nameof(ByUsagePieceList.UpdateAvailableTags)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ByUsage_UpdateAvailableTags_Postfix))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(ByUsagePieceList), nameof(ByUsagePieceList.GetTagDisplayName)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ByUsage_GetTagDisplayName_Prefix))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(ByUsagePieceList), nameof(ByUsagePieceList.GetAvailablePiecesWithTag)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ByUsage_GetAvailablePiecesWithTag_Prefix))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(ByUsagePieceList), nameof(ByUsagePieceList.GetTagById)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ByUsage_GetTagById_Prefix))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(PieceTable), nameof(PieceTable.UpdateAvailable)), transpiler: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(UpdateAvailable_Transpiler))));
-        harmony.Patch(AccessTools.DeclaredMethod(typeof(PieceTable), nameof(PieceTable.UpdateAvailable)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(UpdateAvailable_Prefix))), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(UpdateAvailable_Postfix))));
+        harmony.Patch(AccessTools.DeclaredMethod(typeof(PieceTable), nameof(PieceTable.UpdateAvailable)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(UpdateAvailable_Prefix))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Player), nameof(Player.SetPlaceMode)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(Patch_SetPlaceMode))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Hud), nameof(Hud.Awake)), postfix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(Hud_AwakeCreateTabs))));
         harmony.Patch(AccessTools.DeclaredMethod(typeof(Hud), nameof(Hud.UpdateBuild)), prefix: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(RepositionCatsIfNeeded))));
@@ -1396,6 +1452,11 @@ public static class PiecePrefabManager
     private static readonly Dictionary<string, Piece.PieceCategory> PieceCategories = new();
     private static readonly Dictionary<string, Piece.PieceCategory> OtherPieceCategories = new();
     private static readonly Dictionary<Piece.PieceCategory, string> VanillaLabels = new();
+
+    private static Piece.PieceCategory[] customCategoryValues = [];
+    private static string[] customCategoryNames = [];
+    private static readonly Dictionary<Piece.PieceCategory, string> OwnCategoryLabels = new();
+    private static readonly Dictionary<Piece.PieceCategory, string> OtherCategoryNames = new();
     internal static bool CategoryRefreshNeeded;
 
     public static GameObject RegisterPrefab(string assetBundleFileName, string prefabName, string folderName = "assets") => RegisterPrefab(RegisterAssetBundle(assetBundleFileName, folderName), prefabName);
@@ -1436,37 +1497,28 @@ public static class PiecePrefabManager
 
     private static void EnumGetValuesPatch(Type enumType, ref Array __result)
     {
-        if (enumType != typeof(Piece.PieceCategory))
+        if (customCategoryValues.Length == 0 || enumType != typeof(Piece.PieceCategory))
         {
             return;
         }
 
-        if (PieceCategories.Count == 0)
-        {
-            return;
-        }
-
-        Piece.PieceCategory[] categories = new Piece.PieceCategory[__result.Length + PieceCategories.Count];
-
+        Piece.PieceCategory[] categories = new Piece.PieceCategory[__result.Length + customCategoryValues.Length];
         __result.CopyTo(categories, 0);
-        PieceCategories.Values.CopyTo(categories, __result.Length);
-
+        customCategoryValues.CopyTo(categories, __result.Length);
         __result = categories;
     }
 
     private static void EnumGetNamesPatch(Type enumType, ref string[] __result)
     {
-        if (enumType != typeof(Piece.PieceCategory))
+        if (customCategoryNames.Length == 0 || enumType != typeof(Piece.PieceCategory))
         {
             return;
         }
 
-        if (PieceCategories.Count == 0)
-        {
-            return;
-        }
-
-        __result = __result.AddRangeToArray(PieceCategories.Keys.ToArray());
+        string[] names = new string[__result.Length + customCategoryNames.Length];
+        __result.CopyTo(names, 0);
+        customCategoryNames.CopyTo(names, __result.Length);
+        __result = names;
     }
 
     public static Dictionary<Piece.PieceCategory, string> GetPieceCategoriesMap()
@@ -1509,28 +1561,181 @@ public static class PiecePrefabManager
             {
                 category = categoryPair.Key;
                 OtherPieceCategories[name] = category;
+                OtherCategoryNames[category] = name;
                 return category;
             }
         }
 
-        // create a new category
         category = (Piece.PieceCategory)categories.Count - 1;
+        if (category >= Piece.PieceCategory.All)
+        {
+            category += 1;
+        }
+
         PieceCategories[name] = category;
+        customCategoryValues = customCategoryValues.AddToArray(category);
+        customCategoryNames = customCategoryNames.AddToArray(name);
         string tokenName = GetCategoryToken(name);
+        OwnCategoryLabels[category] = $"${tokenName}";
         Localization.instance.AddWord(tokenName, name);
 
         return category;
     }
 
-    internal static void CreateCategoryTabs()
+
+    private const int CustomTagIdBase = 1 << 24;
+    private static readonly List<Piece.PieceCategory> SeenCategories = [];
+
+    [HarmonyPriority(Priority.Last)]
+    private static void ByUsage_UpdateAvailableTags_Postfix(ByUsagePieceList __instance, PieceTable pieceTable)
     {
-        if (!Hud.instance)
+        if ((OwnCategoryLabels.Count == 0 && OtherCategoryNames.Count == 0) || pieceTable == null)
         {
             return;
         }
-        
+
+        List<Piece.PieceCategory> seen = SeenCategories;
+        seen.Clear();
+        int existingTags = __instance.m_availableTags.Count;
+
+        foreach (Piece piece in pieceTable.m_availablePieces)
+        {
+            Piece.PieceCategory category = piece.m_category;
+            if (category < Piece.PieceCategory.Max || IndexOf(seen, category) >= 0)
+            {
+                continue;
+            }
+
+            seen.Add(category);
+            bool own = OwnCategoryLabels.TryGetValue(category, out string label);
+            if (!own && !OtherCategoryNames.TryGetValue(category, out label))
+            {
+                continue;
+            }
+
+            string token = own ? label : $"${GetCategoryToken(label)}";
+            string displayName = own ? Localization.instance.Localize(label) : label;
+            if (RealTagNamed(__instance, token, displayName, existingTags, out Piece.UsageTagFlags flag))
+            {
+                if (flag != 0)
+                {
+                    foreach (Piece other in pieceTable.m_availablePieces)
+                    {
+                        if (other.m_category == category)
+                        {
+                            other.m_usage |= flag;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if (own)
+            {
+                __instance.m_availableTags.Add(CustomTagIdBase + (int)category);
+            }
+        }
+    }
+
+    private static bool RealTagNamed(ByUsagePieceList list, string token, string displayName, int existingTags, out Piece.UsageTagFlags flag)
+    {
+        flag = 0;
+        for (int i = 0; i < existingTags; ++i)
+        {
+            int id = list.m_availableTags[i];
+            if (id < 0 || id >= list.m_usageTagDisplayNames.Length)
+            {
+                continue;
+            }
+
+            string name = list.m_usageTagDisplayNames[id];
+            if (name == token || string.Equals(Localization.instance.Localize(name), displayName, StringComparison.OrdinalIgnoreCase))
+            {
+                flag = id < list.m_usageTags.Length ? list.m_usageTags[id] : 0;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ByUsage_GetTagDisplayName_Prefix(ByUsagePieceList __instance, int index, ref string __result)
+    {
+        if (!TryGetOwnCategory(__instance.m_availableTags[index], out Piece.PieceCategory category))
+        {
+            return true;
+        }
+
+        __result = OwnCategoryLabels[category];
+        return false;
+    }
+
+    private static bool ByUsage_GetAvailablePiecesWithTag_Prefix(int tagId, PieceTable pieceTable, IList<Piece> resultOut)
+    {
+        if (!TryGetOwnCategory(tagId, out Piece.PieceCategory category))
+        {
+            return true;
+        }
+
+        foreach (Piece piece in pieceTable.m_availablePieces)
+        {
+            if (piece.m_category == category || piece.m_repairPiece || piece.m_removePiece)
+            {
+                resultOut.Add(piece);
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ByUsage_GetTagById_Prefix(ByUsagePieceList __instance, int id, ref Piece.UsageTagFlags __result)
+    {
+        if (id >= 0 && id < __instance.m_usageTags.Length)
+        {
+            return true;
+        }
+
+        __result = (Piece.UsageTagFlags)(-1);
+        return false;
+    }
+
+    private static bool TryGetOwnCategory(int tagId, out Piece.PieceCategory category)
+    {
+        category = (Piece.PieceCategory)(tagId - CustomTagIdBase);
+        return tagId >= CustomTagIdBase && OwnCategoryLabels.ContainsKey(category);
+    }
+
+    private static int IndexOf(List<Piece.PieceCategory> list, Piece.PieceCategory value)
+    {
+        for (int i = 0; i < list.Count; ++i)
+        {
+            if (list[i] == value)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    public static void RefreshBuildMenu()
+    {
+        if (Hud.instance && Hud.instance.m_buildUi)
+        {
+            Hud.instance.m_buildUi.m_availablePieceCount = -1;
+        }
+    }
+
+    internal static void CreateCategoryTabs()
+    {
+        if (!Hud.instance || Hud.instance.m_pieceCategoryTabs.Length == 0)
+        {
+            return;
+        }
+
         int maxCategory = ModifiedMaxCategory();
-        
+
         for (int i = Hud.instance.m_pieceCategoryTabs.Length; i < maxCategory; ++i)
         {
             GameObject tab = CreateCategoryTab();
@@ -1566,7 +1771,13 @@ public static class PiecePrefabManager
         return newTab;
     }
 
-    private static int ModifiedMaxCategory() => Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
+    private static int ModifiedMaxCategory()
+    {
+        int max = Enum.GetValues(typeof(Piece.PieceCategory)).Length - 1;
+        return max < (int)Piece.PieceCategory.All ? max : max + 1;
+    }
+
+    private static int cachedMaxCategory = 9;
 
     private static int GetMaxCategoryOrDefault()
     {
@@ -1576,8 +1787,8 @@ public static class PiecePrefabManager
         }
         catch (ArgumentException)
         {
-            Debug.LogWarning("Could not find Piece.PieceCategory.Max, using fallback value 4");
-            return 4;
+            Debug.LogWarning("Could not find Piece.PieceCategory.Max, using fallback value 9");
+            return 9;
         }
     }
 
@@ -1589,7 +1800,7 @@ public static class PiecePrefabManager
         {
             if (instruction.LoadsConstant(number))
             {
-                newInstructions.Add(new CodeInstruction(OpCodes.Call, AccessTools.DeclaredMethod(typeof(PiecePrefabManager), nameof(ModifiedMaxCategory))));
+                newInstructions.Add(new CodeInstruction(OpCodes.Ldsfld, AccessTools.DeclaredField(typeof(PiecePrefabManager), nameof(cachedMaxCategory))));
                 if (maxOffset != 0)
                 {
                     newInstructions.Add(new CodeInstruction(OpCodes.Ldc_I4, maxOffset));
@@ -1619,7 +1830,7 @@ public static class PiecePrefabManager
 
         return categories;
     }
-    
+
     private static void RepositionCatsIfNeeded()
     {
         if (CategoryRefreshNeeded)
@@ -1629,7 +1840,7 @@ public static class PiecePrefabManager
             RepositionCats();
         }
     }
-    
+
     private static void RepositionCats()
     {
         if (Player.m_localPlayer && Player.m_localPlayer.m_buildPieces)
@@ -1640,6 +1851,11 @@ public static class PiecePrefabManager
 
     private static void RepositionCategories(PieceTable pieceTable)
     {
+        if (!Hud.instance || Hud.instance.m_pieceCategoryTabs.Length == 0 || !Hud.instance.m_pieceCategoryTabs[0])
+        {
+            return;
+        }
+
         RectTransform firstTab = (RectTransform)Hud.instance.m_pieceCategoryTabs[0].transform;
         RectTransform categoryRoot = (RectTransform)Hud.instance.m_pieceCategoryRoot.transform;
         RectTransform selectionWindow = (RectTransform)Hud.instance.m_pieceSelectionWindow.transform;
@@ -1651,30 +1867,25 @@ public static class PiecePrefabManager
 
         const int verticalSpacing = 1;
         Vector2 tabSize = firstTab.rect.size;
-        GridLayoutGroup gridLayout = firstTab.parent.TryGetComponent(out GridLayoutGroup layoutGroup) ? layoutGroup : firstTab.parent.gameObject.AddComponent<GridLayoutGroup>();
-        gridLayout.cellSize = tabSize;
-        gridLayout.spacing = new Vector2(0, verticalSpacing);
-        gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        gridLayout.constraintCount = 5;
-        gridLayout.childAlignment = TextAnchor.MiddleCenter;
 
         HashSet<Piece.PieceCategory> visibleCategories = CategoriesInPieceTable(pieceTable);
         UpdatePieceTableCategories(pieceTable, visibleCategories);
 
         int maxHorizontalTabs = Mathf.Max((int)(categoryRoot.rect.width / tabSize.x), 1);
-        int visibleTabs = pieceTable.m_categories.Count;
 
-        float tabAnchorX = (-tabSize.x * maxHorizontalTabs) / 2f + tabSize.x / 2f;
-        float tabAnchorY = (tabSize.y + verticalSpacing) * Mathf.Floor((float)(visibleTabs - 1) / maxHorizontalTabs) + 5f;
-        Vector2 tabAnchor = new Vector2(tabAnchorX, tabAnchorY);
+        GridLayoutGroup gridLayout = firstTab.parent.TryGetComponent(out GridLayoutGroup layoutGroup) ? layoutGroup : firstTab.parent.gameObject.AddComponent<GridLayoutGroup>();
+        gridLayout.cellSize = tabSize;
+        gridLayout.spacing = new Vector2(0, verticalSpacing);
+        gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gridLayout.constraintCount = maxHorizontalTabs;
 
-        // Calculate the number of rows and adjust the parent to expand upward
-        int rowCount = Mathf.CeilToInt((float)visibleTabs / maxHorizontalTabs);
-        float totalHeight = (tabSize.y + verticalSpacing) * rowCount;
 
-        // Adjust the anchored position of the parent container to expand upward
+        gridLayout.childAlignment = TextAnchor.LowerCenter;
         RectTransform parentRectTransform = firstTab.parent.GetComponent<RectTransform>();
-        parentRectTransform.anchoredPosition = new Vector2(parentRectTransform.anchoredPosition.x, (totalHeight / 2));
+        if (TabsBaseY.TryGetValue(parentRectTransform.GetInstanceID(), out float baseY))
+        {
+            parentRectTransform.anchoredPosition = new Vector2(parentRectTransform.anchoredPosition.x, baseY);
+        }
 
 
         int tabIndex = 0;
@@ -1705,7 +1916,7 @@ public static class PiecePrefabManager
 
         if (background)
         {
-            float height = (tabSize.y + verticalSpacing) * Mathf.Max(0, Mathf.FloorToInt((float)(tabIndex - 1) / maxHorizontalTabs));
+            float height = (tabSize.y + verticalSpacing) * Mathf.Max(0, Mathf.FloorToInt((float)(tabIndex - 1) / gridLayout.constraintCount));
             background.offsetMax = new Vector2(background.offsetMax.x, height);
         }
         else
@@ -1713,50 +1924,80 @@ public static class PiecePrefabManager
             Debug.LogWarning("RefreshCategories: Could not find background image");
         }
 
-        Hud.instance.GetComponentInParent<Localize>().RefreshLocalization();
+        if (Hud.instance.GetComponentInParent<Localize>() is { } localize)
+        {
+            localize.RefreshLocalization();
+        }
     }
 
     private static void UpdatePieceTableCategories(PieceTable pieceTable, HashSet<Piece.PieceCategory> visibleCategories)
     {
-        for (int i = 0; i < GetMaxCategoryOrDefault(); ++i)
-        {
-            Piece.PieceCategory category = (Piece.PieceCategory)i;
-            if (visibleCategories.Contains(category) && !pieceTable.m_categories.Contains(category))
-            {
-                pieceTable.m_categories.Add(category);
-                pieceTable.m_categoryLabels.Add(GetVanillaLabel(category));
-            }
+        List<Piece.PieceCategory> categories = pieceTable.m_categories;
+        List<string> labels = pieceTable.m_categoryLabels;
 
-            if (!visibleCategories.Contains(category) && pieceTable.m_categories.Contains(category))
-            {
-                int index = pieceTable.m_categories.IndexOf(category);
-                pieceTable.m_categories.RemoveAt(index);
-                pieceTable.m_categoryLabels.RemoveAt(index);
-            }
+        // older PieceManagers tacked stray labels on the end, and Jotunn 2.30.1 rebuilds the list with blank ones
+        if (labels.Count > categories.Count)
+        {
+            labels.RemoveRange(categories.Count, labels.Count - categories.Count);
         }
 
-        foreach (KeyValuePair<string, Piece.PieceCategory> entry in PieceCategories)
+        while (labels.Count < categories.Count)
         {
-            string name = entry.Key;
-            Piece.PieceCategory category = entry.Value;
+            labels.Add("");
+        }
 
-            if (visibleCategories.Contains(category) && !pieceTable.m_categories.Contains(category))
+        for (int i = 0; i < GetMaxCategoryOrDefault(); ++i)
+        {
+            SyncCategory(categories, labels, (Piece.PieceCategory)i, visibleCategories, null);
+        }
+
+        foreach (KeyValuePair<Piece.PieceCategory, string> entry in OwnCategoryLabels)
+        {
+            SyncCategory(categories, labels, entry.Key, visibleCategories, entry.Value);
+        }
+
+        // Jotunn 2.30.1 blanks labels on categories it doesn't own, a name beats a bare number
+        Dictionary<Piece.PieceCategory, string>? allNames = null;
+        for (int i = 0; i < categories.Count; ++i)
+        {
+            Piece.PieceCategory category = categories[i];
+            if (category < Piece.PieceCategory.Max || category == Piece.PieceCategory.All || !string.IsNullOrWhiteSpace(labels[i]))
             {
-                pieceTable.m_categories.Add(category);
-                pieceTable.m_categoryLabels.Add($"${GetCategoryToken(name)}");
+                continue;
             }
 
-            if (visibleCategories.Contains(category) && !pieceTable.m_categoryLabels.Contains($"${GetCategoryToken(name)}"))
+            if (!OtherCategoryNames.TryGetValue(category, out string name))
             {
-                pieceTable.m_categoryLabels.Add($"${GetCategoryToken(name)}");
+                allNames ??= GetPieceCategoriesMap();
+                allNames.TryGetValue(category, out name);
             }
 
-            if (!visibleCategories.Contains(category) && pieceTable.m_categories.Contains(category))
+            labels[i] = name ?? "";
+        }
+    }
+
+    private static void SyncCategory(List<Piece.PieceCategory> categories, List<string> labels, Piece.PieceCategory category, HashSet<Piece.PieceCategory> visibleCategories, string? ownLabel)
+    {
+        int index = categories.IndexOf(category);
+        if (!visibleCategories.Contains(category))
+        {
+            if (index >= 0)
             {
-                int index = pieceTable.m_categories.IndexOf(category);
-                pieceTable.m_categories.RemoveAt(index);
-                pieceTable.m_categoryLabels.RemoveAt(index);
+                categories.RemoveAt(index);
+                labels.RemoveAt(index);
             }
+
+            return;
+        }
+
+        if (index < 0)
+        {
+            categories.Add(category);
+            labels.Add(ownLabel ?? GetVanillaLabel(category));
+        }
+        else if (ownLabel != null ? labels[index] != ownLabel : string.IsNullOrWhiteSpace(labels[index]))
+        {
+            labels[index] = ownLabel ?? GetVanillaLabel(category);
         }
     }
 
@@ -1785,11 +2026,16 @@ public static class PiecePrefabManager
         }
     }
 
-    private static string GetCategoryToken(string name)
+    private static string GetCategoryToken(string name) => GetCategoryToken(name, Localization.instance.m_endChars);
+
+    private static string GetCategoryToken(string name, char[] forbiddenChars) => $"piecemanager_cat_{string.Concat(name.ToLower().Split(forbiddenChars))}";
+
+    private static void ReaddCategoryWords(Localization __instance)
     {
-        char[] forbiddenCharsArray = Localization.instance.m_endChars;
-        string tokenCategory = string.Concat(name.ToLower().Split(forbiddenCharsArray));
-        return $"piecemanager_cat_{tokenCategory}";
+        foreach (string name in PieceCategories.Keys)
+        {
+            __instance.AddWord(GetCategoryToken(name, __instance.m_endChars), name);
+        }
     }
 
     private static void Patch_SetPlaceMode(Player __instance)
@@ -1802,26 +2048,48 @@ public static class PiecePrefabManager
 
     private static void UpdateAvailable_Prefix(PieceTable __instance)
     {
-        if (__instance.m_availablePieces.Count > 0)
-        {
-            int missing = ModifiedMaxCategory() - __instance.m_availablePieces.Count;
-            for (int i = 0; i < missing; ++i)
-            {
-                __instance.m_availablePieces.Add([]);
-            }
-        }
-    }
+        int max = cachedMaxCategory = ModifiedMaxCategory();
 
-    private static void UpdateAvailable_Postfix(PieceTable __instance)
-    {
-        Array.Resize(ref __instance.m_selectedPiece, __instance.m_availablePieces.Count);
-        Array.Resize(ref __instance.m_lastSelectedPiece, __instance.m_availablePieces.Count);
+        while (__instance.m_availablePiecesByCategory.Count < max)
+        {
+            __instance.m_availablePiecesByCategory.Add([]);
+        }
+
+        if (__instance.m_selectedPiece.Length < max)
+        {
+            Array.Resize(ref __instance.m_selectedPiece, max);
+        }
+
+        if (__instance.m_lastSelectedPiece.Length < max)
+        {
+            Array.Resize(ref __instance.m_lastSelectedPiece, max);
+        }
     }
 
     [HarmonyPriority(Priority.Low)]
     private static void Hud_AwakeCreateTabs()
     {
+        if (Hud.instance && Hud.instance.m_pieceCategoryTabs.Length > 0 && Hud.instance.m_pieceCategoryTabs[0] && Hud.instance.m_pieceCategoryTabs[0].transform.parent is RectTransform tabs && !TabsBaseY.ContainsKey(tabs.GetInstanceID()))
+        {
+            TabsBaseY[tabs.GetInstanceID()] = tabs.anchoredPosition.y;
+        }
+
         CreateCategoryTabs();
+    }
+
+    private static Dictionary<int, float> TabsBaseY
+    {
+        get
+        {
+            const string key = "PieceManager.TabsBaseY";
+            if (AppDomain.CurrentDomain.GetData(key) is not Dictionary<int, float> map)
+            {
+                map = new Dictionary<int, float>();
+                AppDomain.CurrentDomain.SetData(key, map);
+            }
+
+            return map;
+        }
     }
 
     [HarmonyPriority(Priority.VeryHigh)]
@@ -1872,7 +2140,7 @@ public static class PiecePrefabManager
 
 public static class PieceManagerVersion
 {
-    public const string Version = "1.2.10";
+    public const string Version = "1.4.0";
 }
 
 [PublicAPI]
